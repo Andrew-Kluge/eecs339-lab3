@@ -274,6 +274,8 @@ public class BTreeFile implements DbFile {
 	 * @throws IOException
 	 * @throws TransactionAbortedException
 	 */
+
+	// TODO go over again - clean
 	protected BTreeLeafPage splitLeafPage(TransactionId tid, HashMap<PageId, Page> dirtypages, BTreeLeafPage page, Field field) 
 			throws DbException, IOException, TransactionAbortedException {
 		// some code goes here
@@ -293,8 +295,9 @@ public class BTreeFile implements DbFile {
 
         while((count < tuplesToMove) && tupleIterator.hasNext()){
         	currentTuple = tupleIterator.next();
-			rightChild.insertTuple(currentTuple);
-        	page.deleteTuple(currentTuple);
+			page.deleteTuple(currentTuple);
+        	rightChild.insertTuple(currentTuple);
+
         	count++;
 		}
 
@@ -307,14 +310,14 @@ public class BTreeFile implements DbFile {
 		page.setRightSiblingId(rightChild.getId());
         rightChild.setLeftSiblingId(page.getId());
 
-        Field fieldKey = currentTuple.getField(this.keyField);
+        Field keyField = currentTuple.getField(this.keyField);
         BTreeInternalPage parentPage = (BTreeInternalPage)(this.getParentWithEmptySlots(tid, dirtypages, page.getParentId(), field));
-        BTreeEntry newEntry = new BTreeEntry(fieldKey, page.getId(), rightChild.getId());
+        BTreeEntry newEntry = new BTreeEntry(keyField, page.getId(), rightChild.getId());
         parentPage.insertEntry(newEntry);
 
         this.updateParentPointers(tid, dirtypages, parentPage);
 
-        if(field.compare(Op.LESS_THAN_OR_EQ, fieldKey)){
+        if(field.compare(Op.LESS_THAN_OR_EQ, keyField)){
         	return page;
 		} else {
         	return rightChild;
@@ -343,6 +346,7 @@ public class BTreeFile implements DbFile {
 	 * @throws IOException
 	 * @throws TransactionAbortedException
 	 */
+	// TODO go over again - clean
 	protected BTreeInternalPage splitInternalPage(TransactionId tid, HashMap<PageId, Page> dirtypages, 
 			BTreeInternalPage page, Field field) 
 					throws DbException, IOException, TransactionAbortedException {
@@ -364,8 +368,9 @@ public class BTreeFile implements DbFile {
 
 		while((count < tuplesToMove) && tupleIterator.hasNext()){
 			currentEntry = tupleIterator.next();
-			newPage.insertEntry(currentEntry);
 			page.deleteKeyAndRightChild(currentEntry);
+			newPage.insertEntry(currentEntry);
+
 			count++;
 		}
 
