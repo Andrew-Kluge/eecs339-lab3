@@ -209,14 +209,14 @@ public class BTreeFile implements DbFile {
 					throw new DbException("No entries in <BTreeEntry> iterator.  Check BTreeInternalPage and try again.");
 				}
 				if(f == null){ // could change to else if?
-					return findLeafPage(tid, dirtypages, iterator.next().getLeftChild(), perm, f);
+					return findLeafPage(tid, dirtypages, iterator.next().getLeftChild(), perm, f); // TODO switch perm to READ_ONLY??
 				}
 
 				BTreeEntry entry = iterator.next();
 				Boolean continueLoop = Boolean.TRUE;
 				while (continueLoop){
 					if(entry.getKey().compare(Op.GREATER_THAN_OR_EQ, f)){
-						return	findLeafPage(tid, dirtypages, entry.getLeftChild(), perm, f);
+						return	findLeafPage(tid, dirtypages, entry.getLeftChild(), perm, f);  // TODO switch perm to READ_ONLY??
 					}
 					if(iterator.hasNext()){
 						entry = iterator.next();
