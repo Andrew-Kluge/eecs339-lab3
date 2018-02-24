@@ -6,6 +6,8 @@ import simpledb.BTreeInternalPage;
 
 import simpledb.Predicate.Op;
 
+import static java.lang.Math.ceil;
+
 /**
  * BTreeFile is an implementation of a DbFile that stores a B+ tree.
  * Specifically, it stores a pointer to a root page,
@@ -282,8 +284,41 @@ public class BTreeFile implements DbFile {
 		// the new entry.  getParentWithEmtpySlots() will be useful here.  Don't forget to update
 		// the sibling pointers of all the affected leaf pages.  Return the page into which a 
 		// tuple with the given key field should be inserted.
-        return null;
-		
+        BTreeLeafPage rightChild = (BTreeLeafPage)(this.getEmptyPage(tid, dirtypages, BTreePageId.LEAF));
+
+		int count = 0;
+        double tuplesToMove = ceil(page.getMaxTuples() / 2);
+		Tuple currentTuple = null;
+        Iterator<Tuple> tupleIterator = page.reverseIterator();
+
+        while((count < tuplesToMove) && tupleIterator.hasNext()){
+        	currentTuple = tupleIterator.next();
+			rightChild.insertTuple(currentTuple);
+        	page.deleteTuple(currentTuple);
+        	count++;
+		}
+
+		rightChild.setRightSiblingId(page.getRightSiblingId());
+        if(page.getRightSiblingId() != null){
+        	BTreeLeafPage previous_rightChild = (BTreeLeafPage)(this.getPage(tid, dirtypages, page.getRightSiblingId(), Permissions.READ_WRITE));
+        	previous_rightChild.setLeftSiblingId(rightChild.getId());
+		}
+
+		page.setRightSiblingId(rightChild.getId());
+        rightChild.setLeftSiblingId(page.getId());
+
+        Field fieldKey = currentTuple.getField(this.keyField);
+        BTreeInternalPage parentPage = (BTreeInternalPage)(this.getParentWithEmptySlots(tid, dirtypages, page.getParentId(), field));
+        BTreeEntry newEntry = new BTreeEntry(fieldKey, page.getId(), rightChild.getId());
+        parentPage.insertEntry(newEntry);
+
+        this.updateParentPointers(tid, dirtypages, parentPage);
+
+        if(field.compare(Op.LESS_THAN_OR_EQ, fieldKey)){
+        	return page;
+		} else {
+        	return rightChild;
+		}
 	}
 	
 	/**
@@ -320,7 +355,35 @@ public class BTreeFile implements DbFile {
 		// the parent pointers of all the children moving to the new page.  updateParentPointers()
 		// will be useful here.  Return the page into which an entry with the given key field
 		// should be inserted.
-		return null;
+		BTreeInternalPage newPage = (BTreeInternalPage)(this.getEmptyPage(tid, dirtypages, BTreePageId.INTERNAL));
+
+		int count = 0;
+		double tuplesToMove = ceil(page.getNumEntries() / 2);
+		BTreeEntry currentEntry = null;
+		Iterator<BTreeEntry> tupleIterator = page.reverseIterator();
+
+		while((count < tuplesToMove) && tupleIterator.hasNext()){
+			currentEntry = tupleIterator.next();
+			newPage.insertEntry(currentEntry);
+			page.deleteKeyAndRightChild(currentEntry);
+			count++;
+		}
+
+		BTreeInternalPage parentPage = (BTreeInternalPage)(this.getParentWithEmptySlots(tid, dirtypages, page.getParentId(), field));
+		BTreeEntry middle = tupleIterator.next();
+		Field fieldKey = middle.getKey();
+		page.deleteKeyAndRightChild(middle);
+		middle.setLeftChild(page.getId());
+		middle.setRightChild(newPage.getId());
+		parentPage.insertEntry(middle);
+
+		updateParentPointers(tid, dirtypages, newPage);
+
+		if(field.compare(Op.LESS_THAN_OR_EQ, fieldKey)){
+			return page;
+		} else {
+			return newPage;
+		}
 	}
 	
 	/**
