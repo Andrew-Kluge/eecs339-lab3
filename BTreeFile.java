@@ -2,6 +2,7 @@ package simpledb;
 
 import java.io.*;
 import java.util.*;
+import simpledb.BTreeInternalPage;
 
 import simpledb.Predicate.Op;
 
@@ -191,11 +192,45 @@ public class BTreeFile implements DbFile {
 	 * @return the left-most leaf page possibly containing the key field f
 	 * 
 	 */
+	// TODO Clean
 	private BTreeLeafPage findLeafPage(TransactionId tid, HashMap<PageId, Page> dirtypages, BTreePageId pid, Permissions perm,
 			Field f) 
 					throws DbException, TransactionAbortedException {
 		// some code goes here
-        return null;
+		switch(pid.pgcateg()){
+
+			case BTreePageId.LEAF:
+				return(BTreeLeafPage)(this.getPage(tid, dirtypages, pid, perm)); // maybe change how cast
+
+			case BTreePageId.INTERNAL:
+				simpledb.BTreeInternalPage internalPage = (BTreeInternalPage)(this.getPage(tid, dirtypages, pid, Permissions.READ_ONLY));
+				Iterator<BTreeEntry> iterator = internalPage.iterator();
+				if((iterator.hasNext()==false) || (iterator == null)){
+					throw new DbException("No entries in <BTreeEntry> iterator.  Check BTreeInternalPage and try again.");
+				}
+				if(f == null){ // could change to else if?
+					return findLeafPage(tid, dirtypages, iterator.next().getLeftChild(), perm, f);
+				}
+
+				BTreeEntry entry = iterator.next();
+				Boolean continueLoop = Boolean.TRUE;
+				while (continueLoop){
+					if(entry.getKey().compare(Op.GREATER_THAN_OR_EQ, f)){
+						return	findLeafPage(tid, dirtypages, entry.getLeftChild(), perm, f);
+					}
+					if(iterator.hasNext()){
+						entry = iterator.next();
+					} else{
+						continueLoop = Boolean.FALSE;
+					}
+				}
+				return findLeafPage(tid, dirtypages, entry.getRightChild(), perm, f);
+
+			case BTreePageId.HEADER:
+			case BTreePageId.ROOT_PTR:
+			default:
+				throw new DbException("Error:  Improper PageId");
+		}
 	}
 	
 	/**
